@@ -1,0 +1,133 @@
+---
+title: "R_introduction_chpater 3"
+author: "CH"
+date: "2022/4/19"
+output: html_document
+---
+
+```{r chapter3-1}
+num = 2.2
+char = "hello."
+logi = T
+class(num)
+class(char)
+class(logi)
+
+is.numeric(num)
+is.character(char)
+is.logical(logi)
+
+num_char = as.character(num)
+print(num_char)
+class(num_char)
+```
+
+```{r chapter3-2}
+my_mat = matrix(data=1:16, nrow=4, byrow=T)
+print(my_mat)
+
+my_array = array(data=1:16, dim=c(2,4,2))
+print(my_array)
+print(my_array[,,1]) # pythonから:を抜いた感じ
+print(my_array[1,,])
+
+rownames(my_mat) = c("A","B","C","D")
+colnames(my_mat) = c("a","b","c","d")
+my_mat
+
+#list
+list_1 = list(c("black", "yellow", "orange"),
+             c(TRUE, TRUE, FALSE, TRUE, FALSE, FALSE),
+             matrix(1:6, nrow = 3)) 
+list_1
+
+list_2 = list(colors = c("black", "yellow", "orange"),
+              evaluation = c(TRUE, TRUE, FALSE, TRUE, FALSE, FALSE),
+              time = matrix(1:6, nrow = 3))
+list_2
+list_2$colors
+str(list_2) #structures
+
+#data frames
+#pandasに近い
+p.height <- c(180, 155, 160, 167, 181)
+p.weight <- c(65, 50, 52, 58, 70)
+p.names <- c("Joanna", "Charlotte", "Helen", "Karen", "Amy")
+
+dataf = data.frame(height=p.height, weight=p.weight, names=p.names)
+dataf
+dim(dataf)
+str(dataf)
+dataf$height
+```
+
+```{r chapter3-3}
+flower <- read.csv("~/class/l03-04/flower.csv")
+str(flower)
+```
+
+```{r chapter3-4}
+flower$height
+summary(flower$height)
+
+#3.4.1
+flower[1,4] # 1行4列目の要素
+flower[,c(1,4)] # 1列目と4列目
+flower[c(1,4),] # 1行目と4行目
+```
+
+```{r tidyverse} 
+#モダンなR言語のパッケージ
+library(tidyverse)
+flower %>% select(height)
+flower %>% select(height, weight)
+flower %>% select(-height, -weight)
+flower_height = flower %>% select(height)
+flower_height
+head(flower)
+
+flower %>% filter(nitrogen == "high")
+flower %>%
+  filter(nitrogen == "high") %>%
+  filter(height > 13) %>%
+  select(height, weight)
+
+#data frameでどう処理するか(問題)
+flower[flower$nitrogen=="high" & flower$height>13, c("height","weight")]
+
+id1 = flower$nitrogen=="high"
+id2 = flower$height>13
+id3 = id1 & id2
+flower[id3, c("height","weight")]
+
+#add column
+flower2 = flower %>%
+  mutate(height_cm = height/10)
+flower2
+```
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
