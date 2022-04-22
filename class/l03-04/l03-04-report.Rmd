@@ -3,9 +3,10 @@ title: "第３・４回目"
 author: "22MM337：星澤知宙"
 date: "4/19/2021"
 output:
-  html_document:
-    toc: yes
-    toc_float: yes
+  github_document
+#  html_document:
+#    toc: yes
+#    toc_float: yes
     
 ---
 
