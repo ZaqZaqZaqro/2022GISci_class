@@ -1,0 +1,64 @@
+---
+title: "geocomp with R chap3"
+author: "CH"
+date: "2022/4/26"
+output: html_document
+---
+
+```{r 3.1}
+library(sf)
+library(raster)
+library(dplyr)
+library(stringr)
+library(tidyr)
+library(spData)
+```
+
+```{r 3.2.1}
+sel_area = world$area_km2 < 10000
+summary(sel_area)
+small_countries = world[sel_area, ]
+small_countries
+plot(small_countries["pop"])
+
+world %>%
+  filter(area_km2 < 10000) %>%
+  dplyr::select(pop) %>%
+  plot()
+```
+
+```{r top n}
+##GDPperCapitaがtop10の国をピックアップ
+world %>%
+  top_n(n=10, wt=gdpPercap) %>%
+  dplyr::select(pop) %>%
+  plot()
+
+#ワースト10
+world %>%
+  top_n(n=-10, wt=gdpPercap) %>%
+  dplyr::select(pop) %>%
+  plot()
+
+#日本はGDPcapitaで上から何番目か
+world %>%
+  top_n(n=22, wt=gdpPercap) %>%
+  top_n(n=-1, wt=gdpPercap) %>%
+  dplyr::select(gdpPercap) %>%
+  plot()
+#22番目
+
+#解答例
+world %>%
+  filter(name_long == "Japan") %>%
+  dplyr::select(gdpPercap) %>%
+  st_drop_geometry() %>%
+  as.numeric()
+
+gdp_sort = world %>%
+  arrange(desc(gdpPercap)) %>%
+  dplyr::select(name_long, gdpPercap) %>%
+  st_drop_geometry()
+
+gdp_sort
+```

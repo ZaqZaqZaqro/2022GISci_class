@@ -1,0 +1,78 @@
+---
+title: "geocomp with R chap5"
+author: "CH"
+date: "2022/5/10"
+output: html_document
+---
+
+```{r chapter5-lib}
+library(sf)
+library(raster)
+library(dplyr)
+library(spData)
+library(spDataLarge)
+```
+
+```{r chapter5.2.6}
+us_states
+plot(us_states)
+regions = aggregate(x = us_states[, "total_pop_15"], by = list(us_states$REGION),
+                    FUN = sum, na.rm = TRUE)
+plot(regions)
+regions2 = us_states %>% group_by(REGION) %>%
+  summarize(pop = sum(total_pop_15, na.rm = TRUE))
+
+us_west = us_states[us_states$REGION == "West", ]
+us_west_union = st_union(us_west) #unionは中身を消してgeomのみにする?
+plot(us_west)
+plot(us_west_union)
+```
+
+```{r chapter5.3}
+data("dem", package = "spDataLarge")
+plot(dem)
+dem
+dem_agg = aggregate(dem, fact = 5, fun = mean) #解像度を下げる(1/5)
+plot(dem_agg)
+dem_agg
+
+dem_disagg = disaggregate(dem_agg, fact = 5, method = "bilinear") #解像度を上げる(5倍)
+plot(dem_disagg)
+identical(dem, dem_disagg) #完全には戻らない
+```
+
+```{r chapter5.4}
+srtm = raster(system.file("raster/srtm.tif", package = "spDataLarge")) #標高データ
+zion = st_read(system.file("vector/zion.gpkg", package = "spDataLarge")) #zionという場所(srtmが示している場所)のデータ
+zion = st_transform(zion, projection(srtm)) #2つのデータで座標系を統一
+plot(srtm)
+plot(zion)
+
+srtm_cropped = crop(srtm, zion) #zionの地形全体を含む長方形でsrtmをクロップしている
+plot(srtm_cropped)
+srtm_masked = mask(srtm, zion) #zionの形に沿ってクロップ(マスク)
+plot(srtm_masked)
+
+data("zion_points", package = "spDataLarge")
+zion_points$elevation = raster::extract(srtm, zion_points)
+#raster::extract(srtm, zion_points, buffer = 1000) #バッファ込み.めちゃ重い
+
+zion_nlcd = raster::extract(nlcd, zion, df = TRUE, factors = TRUE) 
+dplyr::select(zion_nlcd, ID, levels) %>% 
+  tidyr::gather(key, value, -ID) %>%
+  group_by(ID, key, value) %>%
+  tally() %>% 
+  tidyr::spread(value, n, fill = 0)
+
+cycle_hire_osm_projected = st_transform(cycle_hire_osm, 27700)
+raster_template = raster(extent(cycle_hire_osm_projected), resolution = 1000,
+                         crs = st_crs(cycle_hire_osm_projected)$proj4string)
+ch_raster1 = rasterize(cycle_hire_osm_projected, raster_template, field = 1)
+plot(ch_raster1)
+ch_raster2 = rasterize(cycle_hire_osm_projected, raster_template, 
+                       field = 1, fun = "count")
+plot(ch_raster2)
+ch_raster3 = rasterize(cycle_hire_osm_projected, raster_template, 
+                       field = "capacity", fun = sum)
+plot(ch_raster3)
+```

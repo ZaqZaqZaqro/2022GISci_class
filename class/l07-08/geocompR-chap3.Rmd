@@ -1,0 +1,74 @@
+---
+title: "geocomp with R chap3"
+author: "CH"
+date: "2022/5/10"
+output: html_document
+---
+
+```{r 3-lib}
+library(sf)
+library(raster)
+library(dplyr)
+library(stringr)
+library(tidyr)
+library(spData)
+```
+
+```{r chapter3.2.3}
+world
+coffee_data
+world_coffee = left_join(world, coffee_data) #左に右を結合(ここでは共通項name_longに依って結合.指定可能)
+class(world_coffee)
+world_coffee
+plot(world_coffee["coffee_production_2017"]) #地図情報とコーヒー情報を元にプロット
+
+coffee_world = left_join(coffee_data, world)
+coffee_world
+plot(coffee_world["coffee_production_2017"])
+
+world_coffee_inner = inner_join(world, coffee_data) #left_joinしつつNA項を削る
+world_coffee_inner
+plot(world_coffee_inner["coffee_production_2017"])
+```
+
+```{r chapter3.2.4}
+world_new = world # do not overwrite our original data
+world_new$pop_dens = world_new$pop / world_new$area_km2 #列の追加
+world_new
+
+world %>% 
+  mutate(pop_dens = pop / area_km2) #格納してないのでworldデータ自体は変わっていない
+
+world %>% transmute(pop_dens = pop / area_km2) %>% plot() #pop_densのみにする(sfクラスなのでgeomは残る)
+```
+
+```{r chapter3.3}
+elev = raster(nrows = 6, ncols = 6, res = 0.5,
+              xmn = -1.5, xmx = 1.5, ymn = -1.5, ymx = 1.5,
+              vals = 1:36) #左から右、その後下の行
+plot(elev)
+
+grain_order = c("clay", "silt", "sand")
+grain_char = sample(grain_order, 36, replace = TRUE) #36個にランダムに3つをあてがう
+grain_fact = factor(grain_char, levels = grain_order) #rasterが扱えるようにしてる
+grain = raster(nrows = 6, ncols = 6, res = 0.5, 
+               xmn = -1.5, xmx = 1.5, ymn = -1.5, ymx = 1.5,
+               vals = grain_fact)
+plot(grain)
+
+elev[1,1]
+elev[1]
+
+r_stack = stack(elev, grain) #データのスタック
+names(r_stack) = c("elev", "grain")
+# three ways to extract a layer of a stack
+raster::subset(r_stack, "elev")
+r_stack[["elev"]]
+r_stack$elev
+
+elev[]
+elev[1, 1:2] = 0
+
+cellStats(elev, sd)
+hist(elev)
+```

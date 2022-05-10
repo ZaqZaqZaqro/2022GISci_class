@@ -1,0 +1,123 @@
+---
+title: "geocomp with R chap4"
+author: "CH"
+date: "2022/5/10"
+output: html_document
+---
+
+```{r chapter4-lib}
+library(sf)
+library(raster)
+library(dplyr)
+library(spData)
+```
+
+```{r chapter4.2}
+nz
+canterbury = nz %>% filter(Name == "Canterbury")
+canterbury_height = nz_height[canterbury, ]
+plot(canterbury_height)
+
+library(tmap)
+p_hpnz1 = tm_shape(nz) + tm_polygons(col = "white") +
+  tm_shape(nz_height) + tm_symbols(shape = 2, col = "red", size = 0.25) +
+  tm_layout(main.title = "High points in New Zealand", main.title.size = 1,
+            bg.color = "lightblue")
+p_hpnz2 = tm_shape(nz) + tm_polygons(col = "white") +
+  tm_shape(canterbury) + tm_fill(col = "gray") + 
+  tm_shape(canterbury_height) + tm_symbols(shape = 2, col = "red", size = 0.25) +
+  tm_layout(main.title = "High points in Canterbury", main.title.size = 1,
+            bg.color = "lightblue")
+tmap_arrange(p_hpnz1, p_hpnz2, ncol = 2)
+
+sel_sgbp = st_intersects(x = nz_height, y = canterbury)
+class(sel_sgbp)
+sel_logical = lengths(sel_sgbp) > 0
+canterbury_height2 = nz_height[sel_logical, ]
+
+a_poly = st_polygon(list(rbind(c(-1, -1), c(1, -1), c(1, 1), c(-1, -1))))
+a = st_sfc(a_poly)
+# create a line
+l_line = st_linestring(x = matrix(c(-1, -1, -0.5, 1), ncol = 2))
+l = st_sfc(l_line)
+# create points
+p_matrix = matrix(c(0.5, 1, -1, 0, 0, 1, 0.5, 1), ncol = 2)
+p_multi = st_multipoint(x = p_matrix)
+p = st_cast(st_sfc(p_multi), "POINT")
+
+par(pty = "s")
+plot(a, border = "red", col = "gray", axes = TRUE)
+plot(l, add = TRUE)
+plot(p, add = TRUE, lab = 1:4)
+text(p_matrix[, 1] + 0.04, p_matrix[, 2] - 0.06, 1:4, cex = 1.3)
+
+sel = st_is_within_distance(p, a, dist = 0.9) # can only return a sparse matrix
+lengths(sel) > 0
+
+
+set.seed(2018) # set seed for reproducibility
+(bb_world = st_bbox(world)) # the world's bounds(世界の範囲)
+random_df = tibble(
+  x = runif(n = 10, min = bb_world[1], max = bb_world[3]),
+  y = runif(n = 10, min = bb_world[2], max = bb_world[4])
+) #世界の範囲内でランダム点10個
+random_points = random_df %>% 
+  st_as_sf(coords = c("x", "y")) %>% # set coordinates
+  st_set_crs(4326) # set geographic CRS
+
+world_random = world[random_points, ] #random_pointsを国土内(geom)に含む国が出てくる(4/10)
+nrow(world_random)
+random_joined = st_join(random_points, world["name_long"])
+plot(random_joined)
+
+plot(st_geometry(cycle_hire), col = "blue")
+plot(st_geometry(cycle_hire_osm), add = TRUE, pch = 3, col = "red")
+
+cycle_hire_P = st_transform(cycle_hire, 27700) #座標系を27700系に移す
+cycle_hire_osm_P = st_transform(cycle_hire_osm, 27700)
+sel = st_is_within_distance(cycle_hire_P, cycle_hire_osm_P, dist = 20) #hireとhire_osmで距離20m以内ならselに入れる
+summary(lengths(sel) > 0)
+
+z = st_join(cycle_hire_P, cycle_hire_osm_P,
+            join = st_is_within_distance, dist = 20)
+nrow(cycle_hire)
+plot(cycle_hire)
+nrow(z)
+z
+
+plot(nz)
+plot(nz_height)
+nz_avheight = aggregate(x = nz_height, by = nz, FUN = mean) #FUNの引数を変えることで様々な関数になる
+
+library(tmap)
+tm_shape(nz_avheight) +
+  tm_fill("elevation", breaks = seq(27, 30, by = 0.5) * 1e2) +
+  tm_borders()
+```
+
+```{r chapter4.3}
+plot(elev)
+id = cellFromXY(elev, xy = c(0.1, 0.1)) #xyが(0.1,0.1)のインデックスをとる
+elev[id]
+# the same as
+raster::extract(elev, data.frame(x = 0.1, y = 0.1))
+
+clip = raster(xmn = 0.9, xmx = 1.8, ymn = -0.45, ymx = 0.45,
+              res = 0.3, vals = rep(1, 9))
+plot(clip)
+elev[clip]
+
+# create raster mask
+rmask = elev 
+values(rmask) = sample(c(NA, TRUE), 36, replace = TRUE)
+plot(rmask)
+# spatial subsetting
+elev[rmask, drop = FALSE]           # with [ operator
+mask(elev, rmask)                   # with mask()
+overlay(elev, rmask, fun = "max")   # with overlay
+
+elev + elev #セルサイズが同じなら演算が可能
+elev^2
+log(elev)
+elev > 5
+```

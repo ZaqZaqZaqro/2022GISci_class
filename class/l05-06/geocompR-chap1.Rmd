@@ -1,0 +1,25 @@
+---
+title: "grocomp with R chap1"
+author: "CH"
+date: "2022/4/26"
+output: html_document
+---
+
+```{r chapter1-2}
+library(leaflet)
+popup = c("Robin", "Jakub", "Jannes")
+leaflet() %>%
+  addProviderTiles("NASAGIBS.ViirsEarthAtNight2012") %>%
+  addMarkers(lng = c(-3, 23, 11), #経度
+             lat = c(52, 53, 49), #緯度
+             popup = popup)
+
+library(leaflet)
+popup2 = c("Las Vegas", "London", "Switzerland", "Sydney")
+leaflet() %>%
+  addProviderTiles("OpenStreetMap.HOT") %>%
+  addCircleMarkers(lng = c(-115, 0, 9, 151), #経度
+             lat = c(36, 51, 47, -34), #緯度
+             popup = popup2)
+```
+```
