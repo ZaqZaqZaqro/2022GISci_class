@@ -1,0 +1,84 @@
+---
+title: "geocomp with R chap8"
+author: "CH"
+date: "2022/5/17"
+output: html_document
+---
+
+```{r lib-in}
+library(sf)
+library(raster)
+library(dplyr)
+library(spData)
+library(spDataLarge)
+```
+
+```{r additional-lib-in}
+library(tmap)    # for static and interactive maps
+library(leaflet) # for interactive maps
+library(ggplot2) # tidyverse data visualization package
+```
+
+```{r 8.2}
+#tmap(描画ライブラリ)の基本的な使い方
+
+# Add fill layer to nz shape
+tm_shape(nz) +
+  tm_fill() 
+# Add border layer to nz shape
+tm_shape(nz) +
+  tm_borders() 
+# Add fill and border layers to nz shape
+tm_shape(nz) +
+  tm_fill() +
+  tm_borders()
+
+map_nz = tm_shape(nz) + tm_polygons()
+map_nz1 = map_nz +
+  tm_shape(nz_elev) + tm_raster(alpha = 0.7) #重ねているが、透明度を指定しているので透けて見える
+nz_water = st_union(nz) %>% st_buffer(22200) %>% 
+  st_cast(to = "LINESTRING")
+map_nz2 = map_nz1 +
+  tm_shape(nz_water) + tm_lines()
+map_nz3 = map_nz2 +
+  tm_shape(nz_height) + tm_dots()
+tmap_arrange(map_nz1, map_nz2, map_nz3)
+
+ma1 = tm_shape(nz) + tm_fill(col = "red")
+ma2 = tm_shape(nz) + tm_fill(col = "red", alpha = 0.3)
+ma3 = tm_shape(nz) + tm_borders(col = "blue")
+ma4 = tm_shape(nz) + tm_borders(lwd = 3)
+ma5 = tm_shape(nz) + tm_borders(lty = 2)
+ma6 = tm_shape(nz) + tm_fill(col = "red", alpha = 0.3) +
+  tm_borders(col = "blue", lwd = 3, lty = 2)
+tmap_arrange(ma1, ma2, ma3, ma4, ma5, ma6)
+
+#plotとtmapの違い
+plot(nz["Land_area"])
+tm_shape(nz) + tm_fill(col = "Land_area")
+
+legend_title = expression("Area (km"^2*")") #タイトルの付け方
+map_nza = tm_shape(nz) +
+  tm_fill(col = "Land_area", title = legend_title) + tm_borders()
+
+tm_shape(nz) + tm_polygons(col = "Median_income") #デフォルトは6段階に分ける
+breaks = c(0, 3, 4, 5) * 10000
+tm_shape(nz) + tm_polygons(col = "Median_income", breaks = breaks) #0,3万,4万,5万で分ける
+tm_shape(nz) + tm_polygons(col = "Median_income", n = 10) #10段階で分ける
+tm_shape(nz) + tm_polygons(col = "Median_income", palette = "BuGn") #色を変える
+
+tm_shape(nz) + tm_polygons("Population", palette = "Blues")
+tm_shape(nz) + tm_polygons("Population", palette = "YlOrBr")
+
+map_nz + 
+  tm_compass(type = "8star", position = c("left", "top")) +
+  tm_scale_bar(breaks = c(0, 100, 200), text.size = 1)
+
+#色々オシャレにできる
+map_nz + tm_layout(title = "New Zealand")
+map_nz + tm_layout(scale = 5)
+map_nz + tm_layout(bg.color = "lightblue")
+map_nz + tm_layout(frame = FALSE)
+```
+
+

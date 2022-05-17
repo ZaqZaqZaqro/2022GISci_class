@@ -1,0 +1,164 @@
+---
+title: "geocomp with R chap7"
+author: "CH"
+date: "2022/5/17"
+output: html_document
+---
+
+#外部からのデータ取り込み
+
+```{r lib-in}
+library(sf)
+library(raster)
+library(dplyr)
+library(spData)
+```
+
+```{r chap7.2}
+#以下はリンク切れしている。このようにデータをダウンロードする。
+#download.file(url = "http://nrdata.nps.gov/programs/lands/nps_boundary.zip",
+#              destfile = "nps_boundary.zip")
+#unzip(zipfile = "nps_boundary.zip")
+#usa_parks = st_read(dsn = "nps_boundary.shp")
+#ベクタファイルはst_read
+```
+
+```{r chap7.3}
+library(rnaturalearth)
+usa = ne_countries(country = "United States of America") # United States borders
+class(usa)
+#これは古いクラス。こういったものはsfクラスに変換して扱うのが良い。
+usa_sf = st_as_sf(usa)
+
+#オープンストリートマップ
+library(osmdata)
+parks = opq(bbox = "leeds uk") %>% 
+  add_osm_feature(key = "leisure", value = "park") %>% 
+  osmdata_sf()
+```
+
+#chapter7.5 file formats
+#figure7.2
+```{r formats, echo=FALSE}
+file_formats = tibble::tribble(~Name, ~Extension, ~Info, ~Type, ~Model, 
+                         "ESRI Shapefile", ".shp (the main file)", "Popular format consisting of at least three files. No support for: files > 2GB;  mixed types; names > 10 chars; cols > 255.", "Vector", "Partially open",
+                         "GeoJSON", ".geojson", "Extends the JSON exchange format by including a subset of the simple feature representation.", "Vector", "Open",
+                         "KML", ".kml", "XML-based format for spatial visualization, developed for use with Google Earth. Zipped KML file forms the KMZ format.", "Vector", "Open",
+                         "GPX", ".gpx", "XML schema created for exchange of GPS data.", "Vector", "Open",
+                         "GeoTIFF", ".tif/.tiff", "Popular raster format. A TIFF file containing additional spatial metadata.", "Raster", "Open",
+                         "Arc ASCII", ".asc", "Text format where the first six lines represent the raster header, followed by the raster cell values arranged in rows and columns.", "Raster", "Open",
+                         "R-raster", ".gri, .grd", "Native raster format of the R-package raster.", "Raster", "Open",
+                         "SQLite/SpatiaLite", ".sqlite", "Standalone  relational database, SpatiaLite is the spatial extension of SQLite.", "Vector and raster", "Open",
+                         "ESRI FileGDB", ".gdb", "Spatial and nonspatial objects created by ArcGIS. Allows: multiple feature classes; topology. Limited support from GDAL.", "Vector and raster", "Proprietary",
+                         "GeoPackage", ".gpkg", "Lightweight database container based on SQLite allowing an easy and platform-independent exchange of geodata", "Vector and raster", "Open"
+                         )
+knitr::kable(file_formats, 
+             caption = "Selected spatial file formats.",
+             caption.short = "Selected spatial file formats.",
+             booktabs = TRUE) %>% 
+  kableExtra::column_spec(2, width = "7em") %>% 
+  kableExtra::column_spec(3, width = "14em") %>% 
+  kableExtra::column_spec(5, width = "7em")
+```
+
+```{r chap7.6}
+sf_drivers = st_drivers()　#パッケージ読み込みドライバを色々読み込む
+head(sf_drivers, n = 5)
+
+vector_filepath = system.file("shapes/world.gpkg", package = "spData")
+world = st_read(vector_filepath)
+
+cycle_hire_txt = system.file("misc/cycle_hire_xy.csv", package = "spData")
+cycle_hire_xy = st_read(cycle_hire_txt, options = c("X_POSSIBLE_NAMES=X",
+                                                    "Y_POSSIBLE_NAMES=Y"))
+
+#well known text(well known binary)はデータ圧縮率を高めるための形式
+world_txt = system.file("misc/world_wkt.csv", package = "spData")
+world_wkt = read_sf(world_txt, options = "GEOM_POSSIBLE_NAMES=WKT")
+# the same as
+world_wkt = st_read(world_txt, options = "GEOM_POSSIBLE_NAMES=WKT", 
+                    quiet = TRUE, stringsAsFactors = FALSE, as_tibble = TRUE)
+
+#ラスターデータ
+raster_filepath = system.file("raster/srtm.tif", package = "spDataLarge")
+single_layer = raster(raster_filepath)
+
+multilayer_filepath = system.file("raster/landsat.tif", package = "spDataLarge")
+band3 = raster(multilayer_filepath, band = 3)
+
+multilayer_brick = brick(multilayer_filepath) #メモリに乗せる
+multilayer_stack = stack(multilayer_filepath) #メモリに乗せず、ポインタのみ
+plot(multilayer_brick)
+```
+
+```{r chap7.7}
+# data output
+
+st_write(obj = world, dsn = "world.gpkg")
+st_write(obj = world, dsn = "world.shp") #.shpは面倒臭い(大量のメッセージファイル、複数のファイルで1つのデータ)
+st_write(obj = world, dsn = "world.gpkg", append = TRUE) #既存ファイルへデータ追加
+```
+#table7.4
+```{r datatypes, echo=FALSE}
+dT = tibble::tribble(
+               ~`Data type`,      ~`Minimum value`,        ~`Maximum value`,
+               "LOG1S",             "FALSE (0)",              "TRUE (1)",
+               "INT1S",                  "-127",                   "127",
+               "INT1U",                     "0",                   "255",
+               "INT2S",               "-32,767",                "32,767",
+               "INT2U",                     "0",                "65,534",
+               "INT4S",        "-2,147,483,647",         "2,147,483,647",
+               "INT4U",                     "0",         "4,294,967,296",
+               "FLT4S",              "-3.4e+38",               "3.4e+38",
+               "FLT8S",             "-1.7e+308",              "1.7e+308"
+  )
+knitr::kable(dT, caption = "Data types supported by the raster package.",
+             caption.short = "Data types supported by the raster package.",
+             booktabs = TRUE)
+```
+```{r chap7.7}
+writeRaster(single_layer, filename = "my_raster.tif", datatype = "INT2U") #ラスター版出力
+writeRaster(x = single_layer,
+            filename = "my_raster.tif",
+            datatype = "INT2U",
+            options = c("COMPRESS=DEFLATE"),
+            overwrite = TRUE) #細かく指定
+```
+
+```{r chap7.8}
+#image output
+
+png(filename = "lifeExp.png", width = 500, height = 350)
+plot(world["lifeExp"])
+dev.off()
+
+#こっちでも可
+library(tmap)
+tmap_obj = tm_shape(world) + tm_polygons(col = "lifeExp")
+tmap_save(tm = tmap_obj, filename = "lifeExp_tmap.png")
+
+# htmlなら動く図なんかも保存可能(らしい)
+library(mapview)
+mapview_obj = mapview(world, zcol = "lifeExp", legend = TRUE)
+mapshot(mapview_obj, file = "my_interactive_map.html")
+```
+
+```{r excersize}
+#未完成
+#administrative area
+unzip(zipfile = "../data/JPN_adm.zip", exdir="./JPN_adm")
+jpn_adm0 = st_read(dsn = "./JPN_adm/JPN_adm0.shp")
+
+#elevation
+unzip(zipfile = "../data/JPN_alt.zip", exdir="./JPN_alt")
+raster_filepath = system.file("./JPN_alt/JPN_alt.gri")
+jpn_alt = raster(raster_filepath)
+jpn_alt = raster("./JPN_alt/JPN_alt.gri")
+
+#population
+unzip(zipfile = "../data/JPN_pop.zip", exdir="./JPN_pop")
+jpn_pop = st_read(dsn = "./JPN_pop/JPN_pop.gri")
+
+plot(jpn_adm0)
+```
+

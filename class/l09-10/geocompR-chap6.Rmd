@@ -1,0 +1,143 @@
+---
+title: "geocomp with R chap6"
+author: "CH"
+date: "2022/5/17"
+output: html_document
+---
+
+```{r lib-in}
+library(sf)
+library(raster)
+library(dplyr)
+library(spData)
+library(spDataLarge)
+```
+
+```{r chap6.1}
+london = data.frame(lon = -0.1, lat = 51.5) %>% #緯度経度指定
+  st_as_sf(coords = c("lon", "lat"))
+st_is_longlat(london)
+#> [1] NA
+
+london_geo = st_set_crs(london, 4326) #crsを付加(?)
+st_is_longlat(london_geo)
+
+london_buff_no_crs = st_buffer(london, dist = 1)
+london_buff = st_buffer(london_geo, dist = 1)
+
+london_proj = data.frame(x = 530000, y = 180000) %>% #m指定
+  st_as_sf(coords = 1:2, crs = 27700) #地球の球面を平面のように扱える直交座標系の1つ(今回のはBritish national grid)
+
+st_crs(london_proj)
+
+london_proj_buff = st_buffer(london_proj, 111320) #緯度経度を1度=111kmとして換算し、半径1度の円を書く
+#緯度経度で半径を設定すると楕円になる。m換算でやると円になる。
+```
+#figure6.1
+```{r crs-buf, fig.cap="Buffers around London with a geographic (left) and projected (right) CRS. The gray outline represents the UK coastline.", fig.scap="Buffers around London with a geographic and projected CRS.",  fig.asp=1, fig.show='hold', out.width="45%", echo=FALSE}
+uk = rnaturalearth::ne_countries(scale = 50) %>% 
+  st_as_sf() %>% 
+  filter(grepl(pattern = "United Kingdom|Ire", x = name_long))
+plot(london_buff, graticule = st_crs(4326), axes = TRUE, reset = FALSE)
+plot(london_geo, add = TRUE)
+plot(st_geometry(uk), add = TRUE, border = "gray", lwd = 3)
+uk_proj = uk %>%
+  st_transform(27700) #座標系の変換
+plot(london_proj_buff, graticule = st_crs(27700), axes = TRUE, reset = FALSE)
+plot(london_proj, add = TRUE)
+plot(st_geometry(uk_proj), add = TRUE, border = "gray", lwd = 3)
+```
+
+```{r chap6.3}
+#緯度経度を入れることでutmの座標系コードが返ってくる関数の例
+lonlat2UTM = function(lonlat) {
+  utm = (floor((lonlat[1] + 180) / 6) %% 60) + 1
+  if(lonlat[2] > 0) {
+    utm + 32600
+  } else{
+    utm + 32700
+  }
+}
+
+#動作例
+epsg_utm_auk = lonlat2UTM(c(174.7, -36.9))
+epsg_utm_lnd = lonlat2UTM(st_coordinates(london))
+st_crs(epsg_utm_auk)$proj4string
+#> [1] "+proj=utm +zone=60 +south +datum=WGS84 +units=m +no_defs"
+st_crs(epsg_utm_lnd)$proj4string
+#> [1] "+proj=utm +zone=30 +datum=WGS84 +units=m +no_defs"
+```
+
+```{r chap6.4}
+crs_lnd = st_crs(cycle_hire_osm)
+class(crs_lnd)
+#> [1] "crs"
+crs_lnd$epsg #epsg番号を持ってこれる
+#> [1] 4326
+```
+
+```{r chap6.5}
+world_mollweide = st_transform(world, crs = "+proj=moll") #モルワイデ図法
+```
+#figure6.2
+```{r mollproj, echo=FALSE, fig.cap="Mollweide projection of the world.", warning=FALSE}
+library(tmap)
+world_mollweide_gr = st_graticule(lat = c(-89.9, seq(-80, 80, 20), 89.9)) %>%
+  lwgeom::st_transform_proj(crs = "+proj=moll")
+tm_shape(world_mollweide_gr) + tm_lines(col = "gray") +
+  tm_shape(world_mollweide) + tm_borders(col = "black") 
+```
+```{r chap6.5}
+world_laea1 = st_transform(world, 
+                           crs = "+proj=laea +x_0=0 +y_0=0 +lon_0=0 +lat_0=0")
+```
+#figure6.4
+```{r laeaproj1, echo=FALSE, fig.cap="Lambert azimuthal equal-area projection centered on longitude and latitude of 0.", fig.scap="Lambert azimuthal equal-area projection of the world", warning=FALSE}
+
+untibble = function(x) structure(x, class = setdiff(class(x), c("tbl_df", "tbl"))) #原文だとエラー吐いたのでこの文が追加されてる
+
+world_laea1_g = st_graticule(ndiscr = 10000) %>%
+  st_transform("+proj=laea +x_0=0 +y_0=0 +lon_0=0 +lat_0=0") %>% 
+  st_geometry() %>% untibble()
+valid_geometries = st_is_valid(world_laea1) # some geometries not valid
+# world_laea1_valid = lwgeom::st_make_valid(world_laea1) # doesn't solve it
+# world_laea1_subset = world_laea1[valid_geometries, ] # solves it but removes countries
+world_laea1_lines = st_cast(world_laea1, "MULTILINESTRING") %>% untibble()
+
+tm_shape(world_laea1_g) + tm_lines(col = "gray") +
+  # tm_shape(world_laea1) + tm_borders(col = "black")
+  tm_shape(world_laea1_lines) + tm_lines(col = "black")
+```
+
+```{r chap6.6}
+cat_raster = raster(system.file("raster/nlcd2011.tif", package = "spDataLarge"))
+crs(cat_raster)
+unique(cat_raster)
+
+wgs84 = "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
+cat_raster_wgs84 = projectRaster(cat_raster, crs = wgs84, method = "ngb") #この関数でラスター系に変換
+
+plot(cat_raster)
+plot(cat_raster_wgs84) #上手く変換できずNULL値の場所があるのが分かる
+```
+#table6.1
+```{r catraster, echo=FALSE}
+#平面→球面変換で色々変わる(歪みにより変換できないピクセル値がNULLになったりする)
+tibble(
+  CRS = c("NAD83", "WGS84"),
+  nrow = c(nrow(cat_raster), nrow(cat_raster_wgs84)),
+  ncol = c(ncol(cat_raster), ncol(cat_raster_wgs84)),
+  ncell = c(ncell(cat_raster), ncell(cat_raster_wgs84)),
+  resolution = c(mean(res(cat_raster)), mean(res(cat_raster_wgs84),
+                                             na.rm = TRUE)),
+  unique_categories = c(length(unique(values(cat_raster))),
+                        length(unique(values(cat_raster_wgs84))))) %>%
+  knitr::kable(caption = paste("Key attributes in the original ('cat\\_raster')", 
+                               "and projected ('cat\\_raster\\_wgs84')", 
+                               "categorical raster datasets."),
+               caption.short = paste("Key attributes in the original and", 
+                                     "projected raster datasets"),
+               digits = 4, booktabs = TRUE)
+```
+
+
