@@ -1,0 +1,181 @@
+---
+title: "第５・６回目"
+author: "22MM337：星澤知宙"
+date: "5/23/2022"
+output:
+  github_document
+  #html_document:
+    #toc: yes
+    #toc_float: yes
+    
+---
+
+##R Markdown
+
+```{r chapter1-2}
+library(leaflet)
+popup = c("Robin", "Jakub", "Jannes")
+leaflet() %>%
+  addProviderTiles("NASAGIBS.ViirsEarthAtNight2012") %>%
+  addMarkers(lng = c(-3, 23, 11), #経度
+             lat = c(52, 53, 49), #緯度
+             popup = popup)
+
+library(leaflet)
+popup2 = c("Las Vegas", "London", "Switzerland", "Sydney")
+leaflet() %>%
+  addProviderTiles("OpenStreetMap.HOT") %>%
+  addCircleMarkers(lng = c(-115, 0, 9, 151), #経度
+             lat = c(36, 51, 47, -34), #緯度
+             popup = popup2)
+```
+
+
+```{r packages}
+install.packages("sf")
+install.packages("raster")
+install.packages("spData")
+#remotes::install_github("Nowosad/spDataLarge")
+
+library(sf)
+library(raster)
+library(spData)
+library(spDataLarge)
+```
+
+```{r worlddata}
+world
+names(world)
+summary(world["lifeExp"])
+plot(world)
+```
+
+```{r world lifeExp}
+world["lifeExp"] #これの属するdata.frameはsfの一部なので、必ずgeomが付いてくる
+class(world)
+plot(world["lifeExp"])
+
+world %>% dplyr::select(lifeExp)
+world %>% dplyr::select(lifeExp) %>% st_drop_geometry() #st = spatial type
+#st_drop_geometry(world["lifeExp"]) 上と同じ文
+```
+
+```{r union}
+world_asia = world[world$continent == "Asia", ]
+plot(world_asia)
+
+asia = st_union(world_asia)
+plot(asia)
+
+plot(world["pop"], reset = FALSE)
+plot(asia, add = TRUE, col = "red") #重畳表示。前のやつでreset=FALSEとし、次のでadd=TRUEとする。動かない。
+```
+
+```{r multipoint}
+#chapter2-2 is vector
+
+# the rbind function simplifies the creation of matrices
+## MULTIPOINT
+multipoint_matrix = rbind(c(5, 2), c(1, 3), c(3, 4), c(3, 2))
+multi_point = st_multipoint(multipoint_matrix)
+multipoint_matrix
+multi_point
+class(multi_point)
+
+linestring_matrix = rbind(c(1, 5), c(4, 4), c(4, 1), c(2, 2), c(3, 2))
+st_linestring(linestring_matrix)
+```
+
+```{r 2.2.4}
+lnd_point = st_point(c(0.1, 51.5))                 # sfg=simple feature geometry  object
+lnd_geom = st_sfc(lnd_point, crs = 4326)           # sfc object
+lnd_attrib = data.frame(                           # data.frame object
+  name = "London",
+  temperature = 25,
+  date = as.Date("2017-06-21")
+  )
+lnd_attrib
+lnd_sf = st_sf(lnd_attrib, geometry = lnd_geom)    # sf object, ここでようやく使えるデータになる
+lnd_sf
+```
+
+```{r 2.3}
+#chapter 2-3 is raster
+
+raster_filepath = system.file("raster/srtm.tif", package = "spDataLarge") #spDataパッケージのデータの読み出し
+new_raster = raster(raster_filepath)
+new_raster #raster layer class. ラスター1つのクラス
+plot(new_raster)
+```
+
+```{r 2.3.3}
+multi_raster_file = system.file("raster/landsat.tif", package = "spDataLarge")
+r_brick = brick(multi_raster_file)
+r_brick
+plot(r_brick) # 1~4は光の波長ごとの成分。青、緑、赤、近赤外
+plotRGB(r_brick)
+```
+
+```{r ndvi}
+# ndviは植生の豊かさを示す。近赤外と赤から算出できる。
+ndvi = (r_brick[[4]] - r_brick[[3]]) / (r_brick[[4]] + r_brick[[3]])
+plot(ndvi)
+```
+
+```{r 3.1}
+library(sf)
+library(raster)
+library(dplyr)
+library(stringr)
+library(tidyr)
+library(spData)
+```
+
+```{r 3.2.1}
+sel_area = world$area_km2 < 10000
+summary(sel_area)
+small_countries = world[sel_area, ]
+small_countries
+plot(small_countries["pop"])
+
+world %>%
+  filter(area_km2 < 10000) %>%
+  dplyr::select(pop) %>%
+  plot()
+```
+
+```{r top n}
+##GDPperCapitaがtop10の国をピックアップ
+world %>%
+  top_n(n=10, wt=gdpPercap) %>%
+  dplyr::select(pop) %>%
+  plot()
+
+#ワースト10
+world %>%
+  top_n(n=-10, wt=gdpPercap) %>%
+  dplyr::select(pop) %>%
+  plot()
+
+#日本はGDPcapitaで上から何番目か
+world %>%
+  top_n(n=22, wt=gdpPercap) %>%
+  top_n(n=-1, wt=gdpPercap) %>%
+  dplyr::select(gdpPercap) %>%
+  plot()
+#22番目
+
+#解答例
+world %>%
+  filter(name_long == "Japan") %>%
+  dplyr::select(gdpPercap) %>%
+  st_drop_geometry() %>%
+  as.numeric()
+
+gdp_sort = world %>%
+  arrange(desc(gdpPercap)) %>%
+  dplyr::select(name_long, gdpPercap) %>%
+  st_drop_geometry()
+
+gdp_sort
+```

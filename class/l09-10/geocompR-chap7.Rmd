@@ -144,7 +144,7 @@ mapshot(mapview_obj, file = "my_interactive_map.html")
 ```
 
 ```{r excersize}
-#未完成
+#宿題
 #administrative area
 unzip(zipfile = "../data/JPN_adm.zip", exdir="./JPN_adm")
 jpn_adm0 = st_read(dsn = "./JPN_adm/JPN_adm0.shp")
