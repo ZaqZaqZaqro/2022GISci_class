@@ -1,0 +1,404 @@
+---
+always_allow_html: true
+title: "第９・１０回課題"
+author: "22MM337：星澤知宙"
+date: "2022/5/23"
+output:
+#  github_document
+  html_document:
+    toc: yes
+    toc_float: yes
+---
+
+## R Markdown
+
+# chapter 6
+```{r lib-in-6}
+library(sf)
+library(raster)
+library(dplyr)
+library(spData)
+library(spDataLarge)
+```
+
+```{r chap6.1}
+london = data.frame(lon = -0.1, lat = 51.5) %>% #緯度経度指定
+  st_as_sf(coords = c("lon", "lat"))
+st_is_longlat(london)
+#> [1] NA
+
+london_geo = st_set_crs(london, 4326) #crsを付加(?)
+st_is_longlat(london_geo)
+
+london_buff_no_crs = st_buffer(london, dist = 1)
+london_buff = st_buffer(london_geo, dist = 1)
+
+london_proj = data.frame(x = 530000, y = 180000) %>% #m指定
+  st_as_sf(coords = 1:2, crs = 27700) #地球の球面を平面のように扱える直交座標系の1つ(今回のはBritish national grid)
+
+st_crs(london_proj)
+
+london_proj_buff = st_buffer(london_proj, 111320) #緯度経度を1度=111kmとして換算し、半径1度の円を書く
+#緯度経度で半径を設定すると楕円になる。m換算でやると円になる。
+```
+
+```{r crs-buf, fig.cap="Buffers around London with a geographic (left) and projected (right) CRS. The gray outline represents the UK coastline.", fig.scap="Buffers around London with a geographic and projected CRS.",  fig.asp=1, fig.show='hold', out.width="45%", echo=FALSE}
+#figure6.1
+uk = rnaturalearth::ne_countries(scale = 50) %>% 
+  st_as_sf() %>% 
+  filter(grepl(pattern = "United Kingdom|Ire", x = name_long))
+plot(london_buff, graticule = st_crs(4326), axes = TRUE, reset = FALSE)
+plot(london_geo, add = TRUE)
+plot(st_geometry(uk), add = TRUE, border = "gray", lwd = 3)
+uk_proj = uk %>%
+  st_transform(27700) #座標系の変換
+plot(london_proj_buff, graticule = st_crs(27700), axes = TRUE, reset = FALSE)
+plot(london_proj, add = TRUE)
+plot(st_geometry(uk_proj), add = TRUE, border = "gray", lwd = 3)
+```
+
+```{r chap6.3}
+#緯度経度を入れることでutmの座標系コードが返ってくる関数の例
+lonlat2UTM = function(lonlat) {
+  utm = (floor((lonlat[1] + 180) / 6) %% 60) + 1
+  if(lonlat[2] > 0) {
+    utm + 32600
+  } else{
+    utm + 32700
+  }
+}
+
+#動作例
+epsg_utm_auk = lonlat2UTM(c(174.7, -36.9))
+epsg_utm_lnd = lonlat2UTM(st_coordinates(london))
+st_crs(epsg_utm_auk)$proj4string
+#> [1] "+proj=utm +zone=60 +south +datum=WGS84 +units=m +no_defs"
+st_crs(epsg_utm_lnd)$proj4string
+#> [1] "+proj=utm +zone=30 +datum=WGS84 +units=m +no_defs"
+```
+
+```{r chap6.4}
+crs_lnd = st_crs(cycle_hire_osm)
+class(crs_lnd)
+#epsg番号を持ってこれる
+crs_lnd$epsg
+```
+
+```{r chap6.5}
+#モルワイデ図法
+world_mollweide = st_transform(world, crs = "+proj=moll")
+```
+
+```{r mollproj, echo=FALSE, fig.cap="Mollweide projection of the world.", warning=FALSE}
+#figure6.2
+library(tmap)
+world_mollweide_gr = st_graticule(lat = c(-89.9, seq(-80, 80, 20), 89.9)) %>%
+  lwgeom::st_transform_proj(crs = "+proj=moll")
+tm_shape(world_mollweide_gr) + tm_lines(col = "gray") +
+  tm_shape(world_mollweide) + tm_borders(col = "black") 
+```
+```{r chap6.5.2}
+world_laea1 = st_transform(world, 
+                           crs = "+proj=laea +x_0=0 +y_0=0 +lon_0=0 +lat_0=0")
+```
+
+```{r laeaproj1, echo=FALSE, fig.cap="Lambert azimuthal equal-area projection centered on longitude and latitude of 0.", fig.scap="Lambert azimuthal equal-area projection of the world", warning=FALSE}
+#figure6.4
+untibble = function(x) structure(x, class = setdiff(class(x), c("tbl_df", "tbl"))) #原文だとエラー吐いたのでこの文が追加されてる
+
+world_laea1_g = st_graticule(ndiscr = 10000) %>%
+  st_transform("+proj=laea +x_0=0 +y_0=0 +lon_0=0 +lat_0=0") %>% 
+  st_geometry() %>% untibble()
+valid_geometries = st_is_valid(world_laea1) # some geometries not valid
+# world_laea1_valid = lwgeom::st_make_valid(world_laea1) # doesn't solve it
+# world_laea1_subset = world_laea1[valid_geometries, ] # solves it but removes countries
+world_laea1_lines = st_cast(world_laea1, "MULTILINESTRING") %>% untibble()
+
+tm_shape(world_laea1_g) + tm_lines(col = "gray") +
+  # tm_shape(world_laea1) + tm_borders(col = "black")
+  tm_shape(world_laea1_lines) + tm_lines(col = "black")
+```
+
+```{r chap6.6}
+cat_raster = raster(system.file("raster/nlcd2011.tif", package = "spDataLarge"))
+crs(cat_raster)
+unique(cat_raster)
+
+wgs84 = "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
+cat_raster_wgs84 = projectRaster(cat_raster, crs = wgs84, method = "ngb") #この関数でラスター系に変換
+
+plot(cat_raster)
+plot(cat_raster_wgs84) #上手く変換できずNULL値の場所があるのが分かる
+```
+
+```{r catraster, echo=FALSE}
+#table6.1
+#平面→球面変換で色々変わる(歪みにより変換できないピクセル値がNULLになったりする)
+tibble(
+  CRS = c("NAD83", "WGS84"),
+  nrow = c(nrow(cat_raster), nrow(cat_raster_wgs84)),
+  ncol = c(ncol(cat_raster), ncol(cat_raster_wgs84)),
+  ncell = c(ncell(cat_raster), ncell(cat_raster_wgs84)),
+  resolution = c(mean(res(cat_raster)), mean(res(cat_raster_wgs84),
+                                             na.rm = TRUE)),
+  unique_categories = c(length(unique(values(cat_raster))),
+                        length(unique(values(cat_raster_wgs84))))) %>%
+  knitr::kable(caption = paste("Key attributes in the original ('cat\\_raster')", 
+                               "and projected ('cat\\_raster\\_wgs84')", 
+                               "categorical raster datasets."),
+               caption.short = paste("Key attributes in the original and", 
+                                     "projected raster datasets"),
+               digits = 4, booktabs = TRUE)
+```
+
+# chapter 7
+```{r lib-in-7}
+#外部からのデータ取り込み
+library(sf)
+library(raster)
+library(dplyr)
+library(spData)
+```
+
+```{r chap7.2}
+#以下はリンク切れしている。このようにデータをダウンロードする。
+#download.file(url = "http://nrdata.nps.gov/programs/lands/nps_boundary.zip",
+#              destfile = "nps_boundary.zip")
+#unzip(zipfile = "nps_boundary.zip")
+#usa_parks = st_read(dsn = "nps_boundary.shp")
+#ベクタファイルはst_read
+```
+
+```{r chap7.3}
+library(rnaturalearth)
+usa = ne_countries(country = "United States of America") # United States borders
+class(usa)
+#これは古いクラス。こういったものはsfクラスに変換して扱うのが良い。
+usa_sf = st_as_sf(usa)
+
+#オープンストリートマップ
+library(osmdata)
+parks = opq(bbox = "leeds uk") %>% 
+  add_osm_feature(key = "leisure", value = "park") %>% 
+  osmdata_sf()
+```
+
+#chapter7.5 file formats
+```{r formats, echo=FALSE}
+#figure7.2
+file_formats = tibble::tribble(~Name, ~Extension, ~Info, ~Type, ~Model, 
+                         "ESRI Shapefile", ".shp (the main file)", "Popular format consisting of at least three files. No support for: files > 2GB;  mixed types; names > 10 chars; cols > 255.", "Vector", "Partially open",
+                         "GeoJSON", ".geojson", "Extends the JSON exchange format by including a subset of the simple feature representation.", "Vector", "Open",
+                         "KML", ".kml", "XML-based format for spatial visualization, developed for use with Google Earth. Zipped KML file forms the KMZ format.", "Vector", "Open",
+                         "GPX", ".gpx", "XML schema created for exchange of GPS data.", "Vector", "Open",
+                         "GeoTIFF", ".tif/.tiff", "Popular raster format. A TIFF file containing additional spatial metadata.", "Raster", "Open",
+                         "Arc ASCII", ".asc", "Text format where the first six lines represent the raster header, followed by the raster cell values arranged in rows and columns.", "Raster", "Open",
+                         "R-raster", ".gri, .grd", "Native raster format of the R-package raster.", "Raster", "Open",
+                         "SQLite/SpatiaLite", ".sqlite", "Standalone  relational database, SpatiaLite is the spatial extension of SQLite.", "Vector and raster", "Open",
+                         "ESRI FileGDB", ".gdb", "Spatial and nonspatial objects created by ArcGIS. Allows: multiple feature classes; topology. Limited support from GDAL.", "Vector and raster", "Proprietary",
+                         "GeoPackage", ".gpkg", "Lightweight database container based on SQLite allowing an easy and platform-independent exchange of geodata", "Vector and raster", "Open"
+                         )
+knitr::kable(file_formats, 
+             caption = "Selected spatial file formats.",
+             caption.short = "Selected spatial file formats.",
+             booktabs = TRUE) %>% 
+  kableExtra::column_spec(2, width = "7em") %>% 
+  kableExtra::column_spec(3, width = "14em") %>% 
+  kableExtra::column_spec(5, width = "7em")
+```
+
+```{r chap7.6}
+sf_drivers = st_drivers()　#パッケージ読み込みドライバを色々読み込む
+head(sf_drivers, n = 5)
+
+vector_filepath = system.file("shapes/world.gpkg", package = "spData")
+world = st_read(vector_filepath)
+
+cycle_hire_txt = system.file("misc/cycle_hire_xy.csv", package = "spData")
+cycle_hire_xy = st_read(cycle_hire_txt, options = c("X_POSSIBLE_NAMES=X",
+                                                    "Y_POSSIBLE_NAMES=Y"))
+
+#well known text(well known binary)はデータ圧縮率を高めるための形式
+world_txt = system.file("misc/world_wkt.csv", package = "spData")
+world_wkt = read_sf(world_txt, options = "GEOM_POSSIBLE_NAMES=WKT")
+# the same as
+world_wkt = st_read(world_txt, options = "GEOM_POSSIBLE_NAMES=WKT", 
+                    quiet = TRUE, stringsAsFactors = FALSE, as_tibble = TRUE)
+
+#ラスターデータ
+raster_filepath = system.file("raster/srtm.tif", package = "spDataLarge")
+single_layer = raster(raster_filepath)
+
+multilayer_filepath = system.file("raster/landsat.tif", package = "spDataLarge")
+band3 = raster(multilayer_filepath, band = 3)
+
+multilayer_brick = brick(multilayer_filepath) #メモリに乗せる
+multilayer_stack = stack(multilayer_filepath) #メモリに乗せず、ポインタのみ
+plot(multilayer_brick)
+```
+
+```{r chap7.7}
+# data output
+st_write(obj = world, dsn = "world.gpkg")
+st_write(obj = world, dsn = "world.shp") #.shpは面倒臭い(大量のメッセージファイル、複数のファイルで1つのデータ)
+st_write(obj = world, dsn = "world.gpkg", append = TRUE) #既存ファイルへデータ追加
+```
+
+```{r datatypes, echo=FALSE}
+#table7.4
+dT = tibble::tribble(
+               ~`Data type`,      ~`Minimum value`,        ~`Maximum value`,
+               "LOG1S",             "FALSE (0)",              "TRUE (1)",
+               "INT1S",                  "-127",                   "127",
+               "INT1U",                     "0",                   "255",
+               "INT2S",               "-32,767",                "32,767",
+               "INT2U",                     "0",                "65,534",
+               "INT4S",        "-2,147,483,647",         "2,147,483,647",
+               "INT4U",                     "0",         "4,294,967,296",
+               "FLT4S",              "-3.4e+38",               "3.4e+38",
+               "FLT8S",             "-1.7e+308",              "1.7e+308"
+  )
+knitr::kable(dT, caption = "Data types supported by the raster package.",
+             caption.short = "Data types supported by the raster package.",
+             booktabs = TRUE)
+```
+```{r chap7.7.2}
+writeRaster(single_layer, filename = "my_raster.tif", datatype = "INT2U") #ラスター版出力
+writeRaster(x = single_layer,
+            filename = "my_raster2.tif",
+            datatype = "INT2U",
+            options = c("COMPRESS=DEFLATE"),
+            overwrite = TRUE) #細かく指定
+```
+
+```{r chap7.8}
+#image output
+#png(filename = "lifeExp.png", width = 500, height = 350)
+#plot(world["lifeExp"])
+#dev.off()
+
+#こっちでも可
+#library(tmap)
+#tmap_obj = tm_shape(world) + tm_polygons(col = "lifeExp")
+#tmap_save(tm = tmap_obj, filename = "lifeExp_tmap.png")
+
+# htmlなら動く図なんかも保存可能(らしい)
+#library(mapview)
+#mapview_obj = mapview(world, zcol = "lifeExp", legend = TRUE)
+#mapshot(mapview_obj, file = "my_interactive_map.html")
+```
+
+```{r excersize}
+#宿題
+#administrative area
+unzip(zipfile = "../data/JPN_adm.zip", exdir="./JPN_adm")
+jpn_adm0 = st_read(dsn = "./JPN_adm/JPN_adm0.shp")
+plot(jpn_adm0)
+plot(jpn_adm0$geometry)
+
+#elevation
+unzip(zipfile = "../data/JPN_alt.zip", exdir="./JPN_alt")
+jpn_alt = raster("./JPN_alt/JPN_alt.gri")
+plot(jpn_alt)
+
+#population
+unzip(zipfile = "../data/JPN_pop.zip", exdir="./JPN_pop")
+jpn_pop = raster("./JPN_pop/JPN_pop.gri")
+plot(jpn_pop)
+
+#road
+unzip(zipfile = "../data/JPN_rds.zip", exdir="./JPN_rds")
+jpn_roads = st_read(dsn = "./JPN_rds/JPN_roads.shp")
+plot(jpn_roads)
+
+#road
+unzip(zipfile = "../data/JPN_rrd.zip", exdir="./JPN_rrd")
+jpn_rails = st_read(dsn = "./JPN_rrd/JPN_rails.shp")
+plot(jpn_rails)
+
+
+library(tmap)
+
+map_jp = tm_shape(jpn_adm0) + tm_polygons()
+map_jp1 = map_jp +
+  tm_shape(jpn_alt) + tm_raster(alpha=0.7)
+```
+
+# chapter 8
+```{r lib-in-8}
+library(sf)
+library(raster)
+library(dplyr)
+library(spData)
+library(spDataLarge)
+```
+
+```{r additional-lib-in}
+library(tmap)    # for static and interactive maps
+library(leaflet) # for interactive maps
+library(ggplot2) # tidyverse data visualization package
+```
+
+```{r 8.2}
+#tmap(描画ライブラリ)の基本的な使い方
+
+# Add fill layer to nz shape
+tm_shape(nz) +
+  tm_fill() 
+# Add border layer to nz shape
+tm_shape(nz) +
+  tm_borders() 
+# Add fill and border layers to nz shape
+tm_shape(nz) +
+  tm_fill() +
+  tm_borders()
+
+map_nz = tm_shape(nz) + tm_polygons()
+map_nz1 = map_nz +
+  tm_shape(nz_elev) + tm_raster(alpha = 0.7) #重ねているが、透明度を指定しているので透けて見える
+nz_water = st_union(nz) %>% st_buffer(22200) %>% 
+  st_cast(to = "LINESTRING")
+map_nz2 = map_nz1 +
+  tm_shape(nz_water) + tm_lines()
+map_nz3 = map_nz2 +
+  tm_shape(nz_height) + tm_dots()
+tmap_arrange(map_nz1, map_nz2, map_nz3)
+
+ma1 = tm_shape(nz) + tm_fill(col = "red")
+ma2 = tm_shape(nz) + tm_fill(col = "red", alpha = 0.3)
+ma3 = tm_shape(nz) + tm_borders(col = "blue")
+ma4 = tm_shape(nz) + tm_borders(lwd = 3)
+ma5 = tm_shape(nz) + tm_borders(lty = 2)
+ma6 = tm_shape(nz) + tm_fill(col = "red", alpha = 0.3) +
+  tm_borders(col = "blue", lwd = 3, lty = 2)
+tmap_arrange(ma1, ma2, ma3, ma4, ma5, ma6)
+
+#plotとtmapの違い
+plot(nz["Land_area"])
+tm_shape(nz) + tm_fill(col = "Land_area")
+
+legend_title = expression("Area (km"^2*")") #タイトルの付け方
+map_nza = tm_shape(nz) +
+  tm_fill(col = "Land_area", title = legend_title) + tm_borders()
+
+tm_shape(nz) + tm_polygons(col = "Median_income") #デフォルトは6段階に分ける
+breaks = c(0, 3, 4, 5) * 10000
+tm_shape(nz) + tm_polygons(col = "Median_income", breaks = breaks) #0,3万,4万,5万で分ける
+tm_shape(nz) + tm_polygons(col = "Median_income", n = 10) #10段階で分ける
+tm_shape(nz) + tm_polygons(col = "Median_income", palette = "BuGn") #色を変える
+
+tm_shape(nz) + tm_polygons("Population", palette = "Blues")
+tm_shape(nz) + tm_polygons("Population", palette = "YlOrBr")
+
+map_nz + 
+  tm_compass(type = "8star", position = c("left", "top")) +
+  tm_scale_bar(breaks = c(0, 100, 200), text.size = 1)
+
+#色々オシャレにできる
+map_nz + tm_layout(title = "New Zealand")
+map_nz + tm_layout(scale = 5)
+map_nz + tm_layout(bg.color = "lightblue")
+map_nz + tm_layout(frame = FALSE)
+```
+
+
