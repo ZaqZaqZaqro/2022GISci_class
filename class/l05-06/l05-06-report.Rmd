@@ -1,17 +1,19 @@
 ---
+always_allow_html: true
 title: "第５・６回目"
 author: "22MM337：星澤知宙"
 date: "5/23/2022"
 output:
   github_document
-  #html_document:
-    #toc: yes
-    #toc_float: yes
+#  html_document:
+#    toc: yes
+#    toc_float: yes
     
 ---
 
-##R Markdown
+## R Markdown
 
+# chapter 1
 ```{r chapter1-2}
 library(leaflet)
 popup = c("Robin", "Jakub", "Jannes")
@@ -30,7 +32,7 @@ leaflet() %>%
              popup = popup2)
 ```
 
-
+# chapter 2
 ```{r packages}
 install.packages("sf")
 install.packages("raster")
@@ -122,6 +124,8 @@ ndvi = (r_brick[[4]] - r_brick[[3]]) / (r_brick[[4]] + r_brick[[3]])
 plot(ndvi)
 ```
 
+
+# chapter 3
 ```{r 3.1}
 library(sf)
 library(raster)
@@ -145,7 +149,7 @@ world %>%
 ```
 
 ```{r top n}
-##GDPperCapitaがtop10の国をピックアップ
+#GDPperCapitaがtop10の国をピックアップ
 world %>%
   top_n(n=10, wt=gdpPercap) %>%
   dplyr::select(pop) %>%
