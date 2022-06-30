@@ -103,9 +103,6 @@ for(i in 1:12){
   fin_map = tm_shape(map_data) + tm_borders() + tm_text("市町村名", size=0.2) + tm_fill("num", style="cont")
   tmap_save(fin_map, paste0("./map_", as.character(i+2009), ".html"))
 }
-
-
-
 ```
 
 ```{r loadAllData}
