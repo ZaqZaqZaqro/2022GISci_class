@@ -1,7 +1,7 @@
 ---
 title: "GIScience class final report"
-author: "YOUR NAME"
-date: "SUBMISSION DATE"
+author: "星澤 知宙"
+date: "2022年6月30日"
 output:
   html_document:
     df_print: paged
@@ -10,7 +10,7 @@ output:
     toc_float: true
   github_document:
     toc: yes
-subtitle: "テーマ or タイトル"
+subtitle: "北海道における年ごとの観光入込客数に関する分析"
 fontsize: 11pt
 linestretch: 1.2
 link-citations: yes
@@ -21,25 +21,96 @@ bibliography: bibliography.bib
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r load_data}
-loadData <- function(fileName){
-  data = read.xlsx(fileName)
-  data = data %>% 
-    filter(区.分 == "入込総数") %>%
-    filter(!is.na(市町村名)) %>%
-    select(市町村名, 合計) # 2010~
-  #  select(市町村名, 年間合計) # ~2009
-  
-  numbers = as.numeric(unlist(data["合計"]))
-  #numbers = as.numeric(unlist(data["年間合計"]))
+```{r lib-in}
+library(sf)
+library(raster)
+library(dplyr)
+library(spData)
+library(spDataLarge)
+library(tmap)    # for static and interactive maps
+library(leaflet) # for interactive maps
+library(ggplot2) # tidyverse data visualization package
+install.packages("openxlsx")
+library(openxlsx)
+install.packages("gifski")
+library(gifski)
+```
+
+```{r functionSet}
+# データの読み込みと整形. a=0:合計 a=1:対前年比
+loadData <- function(year, a){
+  data = read.xlsx(paste0("../data/", as.character(year), ".xlsx"))
+  data = data %>% filter(区.分 == "入込総数") %>% filter(!is.na(市町村名))
+  if(a==0){
+    if(year < 2010)
+      col_name = "年間合計"
+    else
+      col_name = "合計"
+    data = data %>% select(市町村名, all_of(col_name))
+    numbers = as.numeric(unlist(data[col_name])) * 1000
+    if(year == 2021) # 2021年は4~9月のみのため倍にしている
+      numbers = numbers*2
+  }else{
+    col_name = "対前年比"
+    data = data %>% select(市町村名, all_of(col_name))
+    numbers = as.numeric(unlist(data[col_name]))
+    if(year==2010) # 2010年のみ表記が違う
+      numbers = numbers*100
+  }  
   data["num"] = numbers
   data = data %>%
     select(市町村名, num)
 }
+```
 
-for(i in 1:12){
-  data[i] = loadData(paste0("../data/", as.character(i+2009), ".xlsx"))
+```{r loadData_and_makeMap}
+# gifの作成
+
+hkd_map = st_read("../data/hokkaido_map_4612.geojson")
+hkd_map = hkd_map[1]
+
+# 入込客数の合計
+for(i in 0:21){
+  data = loadData(i+2000, 0)
+  map_data = left_join(data, hkd_map, by="市町村名")
+  year = array(i+2000, c(nrow(map_data)))
+  map_data["year"] = year
+  if(i == 0)
+    fin_data = map_data
+  else
+    fin_data = rbind(fin_data, map_data)
 }
+fin_data = st_as_sf(fin_data)
+tmap_mode("plot")
+anim_map = tm_shape(fin_data) + tm_borders() + 
+  tm_text("市町村名", size=0.2) + tm_fill("num", style="cont") +
+  tm_facets(along = "year", free.coords = FALSE)
+tmap_animation(anim_map, filename = "./figures/anim_map_sum.gif", delay = 60)
+
+
+# 入込客数の対前年比
+for(i in 0:21){
+  data = loadData(i+2000, 1)
+  map_data = left_join(data, hkd_map, by="市町村名")
+  year = array(i+2000, c(nrow(map_data)))
+  map_data["year"] = year
+  if(i == 0)
+    fin_data = map_data
+  else
+    fin_data = rbind(fin_data, map_data)
+}
+fin_data = st_as_sf(fin_data)
+tmap_mode("plot")
+breaks = c(50, 75, 100, 125, 150)
+anim_map = tm_shape(fin_data) + tm_borders() + 
+  tm_text("市町村名", size=0.2) + tm_fill("num", style="cont", breaks=breaks) +
+  tm_facets(along = "year", free.coords = FALSE)
+tmap_animation(anim_map, filename = "./figures/anim_map_rat.gif", delay = 60)
+```
+
+```{r sum_gif}
+knitr::include_graphics("figures/anim_map_sum.gif")
+```
 
 ```
 

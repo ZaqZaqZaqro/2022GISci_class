@@ -16,7 +16,6 @@ library(leaflet) # for interactive maps
 library(ggplot2) # tidyverse data visualization package
 install.packages("openxlsx")
 library(openxlsx)
-
 ```
 
 ```{r inputData}
@@ -79,7 +78,7 @@ anim_map = tm_shape(fin_map) + tm_borders() + tm_text("市町村名", size=0.2) 
 tmap_animation(urb_anim, filename = "urb_anim.gif", delay = 25)
 ```
 
-```{r loadDataSimple}
+```{r load_and_make_map}
 loadData <- function(fileName){
   data = read.xlsx(fileName)
   data = data %>% 
@@ -87,33 +86,26 @@ loadData <- function(fileName){
     filter(!is.na(市町村名)) %>%
     select(市町村名, 合計) # 2010~
   #  select(市町村名, 年間合計) # ~2009
-  
-  numbers = as.numeric(unlist(data["合計"]))
+  numbers = as.numeric(unlist(data["合計"])) * 1000
   #numbers = as.numeric(unlist(data["年間合計"]))
   data["num"] = numbers
   data = data %>%
     select(市町村名, num)
 }
 
-#for(i in 1:12){
-#  data = loadData(paste0("../data/", as.character(i+2009), ".xlsx"))
-#}
-
-data1 = loadData(paste0("../data/", as.character(2012), ".xlsx"))
-data2 = loadData(paste0("../data/", as.character(2011), ".xlsx"))
-setdiff(data1[,1], data2[,1])
-
-setdiff(data2[,1], data1[,1])
-```
-
-```{r makeMapSimple}
 hkd_map = st_read("../data/hokkaido_map_4612.geojson")
 hkd_map = hkd_map[1]
-map_data = left_join(data, hkd_map)
-map_data = st_as_sf(map_data)
-#tmap_mode("plot")
-fin_map = tm_shape(map_data) + tm_borders() + tm_text("市町村名", size=0.2) + tm_fill("num", style="cont")
-tmap_save(fin_map, "./map_2021.html")
+
+for(i in 1:12){
+  data = loadData(paste0("../data/", as.character(i+2009), ".xlsx"))
+  map_data = st_as_sf(left_join(data, hkd_map))
+  #tmap_mode("plot")
+  fin_map = tm_shape(map_data) + tm_borders() + tm_text("市町村名", size=0.2) + tm_fill("num", style="cont")
+  tmap_save(fin_map, paste0("./map_", as.character(i+2009), ".html"))
+}
+
+
+
 ```
 
 ```{r loadAllData}
