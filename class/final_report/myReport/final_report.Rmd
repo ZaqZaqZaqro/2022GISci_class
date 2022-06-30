@@ -1,0 +1,93 @@
+---
+title: "GIScience class final report"
+author: "YOUR NAME"
+date: "SUBMISSION DATE"
+output:
+  html_document:
+    df_print: paged
+    theme: flatly
+    toc: yes
+    toc_float: true
+  github_document:
+    toc: yes
+subtitle: "テーマ or タイトル"
+fontsize: 11pt
+linestretch: 1.2
+link-citations: yes
+bibliography: bibliography.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load_data}
+loadData <- function(fileName){
+  data = read.xlsx(fileName)
+  data = data %>% 
+    filter(区.分 == "入込総数") %>%
+    filter(!is.na(市町村名)) %>%
+    select(市町村名, 合計) # 2010~
+  #  select(市町村名, 年間合計) # ~2009
+  
+  numbers = as.numeric(unlist(data["合計"]))
+  #numbers = as.numeric(unlist(data["年間合計"]))
+  data["num"] = numbers
+  data = data %>%
+    select(市町村名, num)
+}
+
+for(i in 1:12){
+  data[i] = loadData(paste0("../data/", as.character(i+2009), ".xlsx"))
+}
+
+```
+
+## 0. 要旨
+AAAAAAAAAAAAAAAA. 
+BBBBBBBBBBBBBBBB. 
+CCCCCCCCCCCCCCC.   
+
+
+
+<br>
+<br>
+  
+  下のフォーマットは一例です。　
+レポートの構成は多少替えても大丈夫です。
+
+## 1. はじめに
+### 1.1 背景
+XXXXXXXX。 
+Toblerは... [@tobler1970computer]。
+aa [@tourists_data]
+bb [@map_data]
+XXXXXXXXXXXX。  
+
+### 1.2 目的
+XXXXXXXX。   
+
+## 2. 手法
+XXXXXXXX。
+XXXXXXXXXXXX。  
+
+## 3. データ
+XXXXXXXX。
+XXXXXXXXXXXX。  
+
+## 4. 結果
+XXXXXXXX。
+XXXXXXXXXXXX。  
+
+## 5. 考察
+XXXXXXXX。
+XXXXXXXXXXXX。  
+
+## 6. 結論
+XXXXXXXX。
+XXXXXXXXXXXX。  
+
+## 7. Graphic Abstract
+レポートを表す１枚の図をここで示す。
+
+## 8. 参考文献

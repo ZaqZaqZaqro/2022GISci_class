@@ -322,6 +322,8 @@ library(tmap)
 map_jp = tm_shape(jpn_adm0) + tm_polygons()
 map_jp1 = map_jp +
   tm_shape(jpn_alt) + tm_raster(alpha=0.7)
+map_jp2 = map_jp +
+  tm_shape(jpn_pop) + tm_raster(alpha = 0.7)
 ```
 
 # chapter 8

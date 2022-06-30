@@ -1,0 +1,82 @@
+---
+title: "geocomp with R chap8-2"
+author: "22MM337：星澤知宙"
+date: "2022/5/24"
+output: html_document
+---
+
+```{r lib-in8}
+library(sf)
+library(raster)
+library(dplyr)
+library(spData)
+library(spDataLarge)
+
+library(tmap)    # for static and interactive maps
+library(leaflet) # for interactive maps
+library(ggplot2) # tidyverse data visualization package
+```
+
+```{r chap8.2.6}
+untibble = function(x) structure(x, class = setdiff(class(x), c("tbl_df", "tbl")))
+
+# urban_agglomerationsは縦長のデータ。これが横長だとこんな簡単には書けなかったりする。
+urb_1970_2030 = urban_agglomerations %>% 
+  filter(year %in% c(1970, 1990, 2010, 2030)) %>% 
+  untibble()
+
+tm_shape(untibble(world)) +
+  tm_polygons() +
+  tm_shape(urb_1970_2030) +
+  tm_symbols(col = "black", border.col = "white", size = "population_millions") +
+  tm_facets(by = "year", nrow = 2, free.coords = FALSE) #年ごとに地図を分けることを指定
+```
+
+```{r chap8.2.7}
+#地図の重ね書き
+
+#範囲指定
+nz_region = st_bbox(c(xmin = 1340000, xmax = 1450000,
+                      ymin = 5130000, ymax = 5210000),
+                    crs = st_crs(nz_height)) %>% 
+  st_as_sfc()
+
+nz_height_map = tm_shape(nz_elev, bbox = nz_region) +
+  tm_raster(style = "cont", palette = "YlGn", legend.show = TRUE) +
+  tm_shape(nz_height) + tm_symbols(shape = 2, col = "red", size = 1) +
+  tm_scale_bar(position = c("left", "bottom"))
+
+nz_map = tm_shape(nz) + tm_polygons() +
+  tm_shape(nz_height) + tm_symbols(shape = 2, col = "red", size = 0.1) + 
+  tm_shape(nz_region) + tm_borders(lwd = 3) 
+
+library(grid)
+nz_height_map
+print(nz_map, vp = viewport(0.8, 0.27, width = 0.5, height = 0.5))
+```
+
+```{r chap8.3}
+#gifパッケージをrstudioに入れればアニメーションマップが作れる
+urb_anim = tm_shape(untibble(world)) + tm_polygons() + 
+  tm_shape(urban_agglomerations) + tm_dots(size = "population_millions") +
+  tm_facets(along = "year", free.coords = FALSE)
+
+#tmap_animation(urb_anim, filename = "urb_anim.gif", delay = 25)
+```
+
+```{r chap8.4}
+#モードを変えるだけでインタラクティブな地図が書ける
+tmap_mode("view")
+map_nz
+
+map_nz + tm_basemap(server = "OpenTopoMap")
+
+#このモードでfacetsをやると2つの地図を同時に動かす感じになる
+world_coffee = left_join(world, coffee_data, by = "name_long")
+facets = c("coffee_production_2016", "coffee_production_2017")
+tm_shape(world_coffee) + tm_polygons(facets) + 
+  tm_facets(nrow = 1, sync = TRUE)
+
+tmap_mode("plot")
+#> tmap mode set to plotting(いつもの)
+```

@@ -1,0 +1,181 @@
+---
+title: "tests"
+author: "22MM337：星澤知宙"
+date: "2022/5/24"
+output: html_document
+---
+
+```{r lib-in}
+library(sf)
+library(raster)
+library(dplyr)
+library(spData)
+library(spDataLarge)
+library(tmap)    # for static and interactive maps
+library(leaflet) # for interactive maps
+library(ggplot2) # tidyverse data visualization package
+install.packages("openxlsx")
+library(openxlsx)
+
+```
+
+```{r inputData}
+data = read.xlsx("../data/2022.xlsx")
+data
+#data$合計
+data_goukei = data %>% 
+  filter(区.分 == "入込総数")
+data_goukei
+
+data_detail = read.xlsx("../data/2021.xlsx")
+data_detail_sousuu = data_detail %>% 
+  filter(区.分 == "入込総数")
+data_detail_sousuu
+
+data_detail_sousuu_notNA = data_detail_sousuu %>%
+  filter(!is.na(市町村名))
+data_detail_sousuu_notNA
+data_detail_sousuu_notNA_goukei = data_detail_sousuu_notNA %>%
+  select(市町村名, 合計)
+data_detail_sousuu_notNA_goukei
+
+tmp = data_detail_sousuu_notNA %>%
+    select(-圏.域, -振興局, -区.分, -合計, -対前年比)
+tmp = tmp[-14]
+names(tmp) = c("name","4","5","6","7","8","9","10","11","12","1","2","3")
+for(count in c(2:13)){
+  tmp[count] = as.numeric(unlist(tmp[count]))
+}
+```
+
+```{r mapdata}
+hkd_map = st_read("../data/hokkaido_map_4612.geojson")
+tm_shape(hkd_map) + tm_borders()
+
+hkd_map_name = hkd_map[1]
+
+#left_join関数の挙動チェック
+a <- data.frame(x1=c("A","B","C"),x2=1:3)
+b <- data.frame(x1=c("A","B","D"),x3=c(TRUE, FALSE, TRUE))
+c = left_join(b,a)
+
+numbers = as.numeric(unlist(data_detail_sousuu_notNA_goukei["合計"]))
+data_detail_sousuu_notNA_goukei["num"] = numbers
+tmp = data_detail_sousuu_notNA_goukei %>%
+  select(市町村名, num)
+
+comb_data = left_join(tmp, hkd_map_name)
+is.na(comb_data)　#check data
+
+fin_map = st_as_sf(comb_data)
+
+tmap_mode("plot")
+tm_shape(fin_map) + tm_borders() + tm_text("市町村名", size=0.2) + tm_fill("num", style="cont")
+
+anim_map = tm_shape(fin_map) + tm_borders() + tm_text("市町村名", size=0.2) + tm_fill("num", style="cont")
++ tm_polygons() + 
+  tm_shape(urban_agglomerations) + tm_dots(size = "population_millions") +
+  tm_facets(along = "year", free.coords = FALSE)
+tmap_animation(urb_anim, filename = "urb_anim.gif", delay = 25)
+```
+
+```{r loadDataSimple}
+loadData <- function(fileName){
+  data = read.xlsx(fileName)
+  data = data %>% 
+    filter(区.分 == "入込総数") %>%
+    filter(!is.na(市町村名)) %>%
+    select(市町村名, 合計) # 2010~
+  #  select(市町村名, 年間合計) # ~2009
+  
+  numbers = as.numeric(unlist(data["合計"]))
+  #numbers = as.numeric(unlist(data["年間合計"]))
+  data["num"] = numbers
+  data = data %>%
+    select(市町村名, num)
+}
+
+#for(i in 1:12){
+#  data = loadData(paste0("../data/", as.character(i+2009), ".xlsx"))
+#}
+
+data1 = loadData(paste0("../data/", as.character(2012), ".xlsx"))
+data2 = loadData(paste0("../data/", as.character(2011), ".xlsx"))
+setdiff(data1[,1], data2[,1])
+
+setdiff(data2[,1], data1[,1])
+```
+
+```{r makeMapSimple}
+hkd_map = st_read("../data/hokkaido_map_4612.geojson")
+hkd_map = hkd_map[1]
+map_data = left_join(data, hkd_map)
+map_data = st_as_sf(map_data)
+#tmap_mode("plot")
+fin_map = tm_shape(map_data) + tm_borders() + tm_text("市町村名", size=0.2) + tm_fill("num", style="cont")
+tmap_save(fin_map, "./map_2021.html")
+```
+
+```{r loadAllData}
+
+```
+
+
+
+
+```{r templateLibs}
+library(sf)
+library(raster)
+library(dplyr)
+library(spData)
+library(spDataLarge)
+library(tmap)    # for static and interactive maps
+library(leaflet) # for interactive maps
+library(ggplot2) # tidyverse data visualization package
+install.packages("openxlsx")
+library(openxlsx)
+```
+
+```{r template4oneMap}
+#read map data
+hkd_map = st_read("../data/hokkaido_map_4612.geojson")
+
+#read number data
+rowData = read.xlsx("../data/2021-detail.xlsx")
+numberData = rowData %>% 
+  filter(区.分 == "入込総数") %>%
+  filter(!is.na(市町村名)) %>%
+  select(市町村名, 合計)
+numberData["num"] = as.numeric(unlist(numberData["合計"]))
+numberData = numberData %>%
+  select(市町村名, num)
+
+#combine datas & save map
+combined_data = left_join(numberData, hkd_map[1])
+stopifnot(!anyNA(combined_data))
+sf_map = st_as_sf(combined_data)
+finalMap = tm_shape(sf_map) + tm_borders() + tm_text("市町村名") + tm_fill("num", style="cont")
+tmap_save(finalMap, "./map_2021.html")
+```
+
+```{r make_allYear_map}
+#read map data
+hkd_map = st_read("../data/hokkaido_map_4612.geojson")
+
+#read number data
+rowData = read.xlsx("../data/2021-detail.xlsx")
+numberData = rowData %>% 
+  filter(区.分 == "入込総数") %>%
+  filter(!is.na(市町村名)) %>%
+  select(市町村名, 合計)
+numberData["num"] = as.numeric(unlist(numberData["合計"]))
+numberData = numberData %>%
+  select(市町村名, num)
+
+#combine datas & save map
+combined_data = left_join(numberData, hkd_map[1])
+stopifnot(!anyNA(combined_data))
+sf_map = st_as_sf(combined_data)
+finalMap = tm_shape(sf_map) + tm_borders() + tm_text("市町村名") + tm_fill("num", style="cont")
+tmap_save(finalMap, "./map_2021.html")
+```

@@ -79,6 +79,11 @@ map_nz + tm_layout(title = "New Zealand")
 map_nz + tm_layout(scale = 5)
 map_nz + tm_layout(bg.color = "lightblue")
 map_nz + tm_layout(frame = FALSE)
+
+
+tm_shape(nz) +
+  tm_polygons(col = "Median_income") +
+  tm_layout(bg.color = "lightblue")
 ```
 
 
