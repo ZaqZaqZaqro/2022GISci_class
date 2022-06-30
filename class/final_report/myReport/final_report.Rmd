@@ -3,13 +3,13 @@ title: "GIScience class final report"
 author: "星澤 知宙"
 date: "2022年6月30日"
 output:
+  #github_document:
+    #toc: yes
   html_document:
     df_print: paged
     theme: flatly
     toc: yes
     toc_float: true
-  github_document:
-    toc: yes
 subtitle: "北海道における年度ごとの観光入込客数に関する分析"
 fontsize: 11pt
 linestretch: 1.2
